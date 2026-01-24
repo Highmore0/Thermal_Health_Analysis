@@ -1,0 +1,32 @@
+:root{
+  --bg:#111;
+  --panel:#1b1b1b;
+  --panel2:#141414;
+  --text:#ddd;
+  --muted:#9aa0a6;
+  --border:#333;
+  --border2:#444;
+  --link:#9ad;
+  --radius:14px;
+  --radius2:12px;
+}
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+}
+
+a{ color:var(--link); text-decoration:none; }
+a:hover{ text-decoration:underline; }
+
+input, select, button{
+  font: inherit;
+}
+
+.mono{
+  font-family: ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+}

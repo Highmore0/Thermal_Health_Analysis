@@ -1,0 +1,110 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 10px 12px; border-bottom: 1px solid #222;
+}
+.title{ font-weight: 700; }
+.navbtn{ padding: 8px 10px; border: 1px solid #333; background: #111; color: #eee; border-radius: 10px; }
+.navbtn:active{ transform: scale(0.98); }
+
+.container{
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 12px;
+  padding: 12px;
+}
+
+.frame{
+  border: 1px solid #333;
+  border-radius: 16px;
+  padding: 10px;
+  background: #0f0f0f;
+  min-height: 60vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+
+#shotImg{
+  width: 100%;
+  height: auto;
+  max-height: 72vh;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #000;
+}
+
+.hint{ margin-top: 8px; color: #999; font-size: 12px; }
+
+.panel{
+  border: 1px solid #333;
+  border-radius: 16px;
+  padding: 12px;
+  background: #0f0f0f;
+  display:flex;
+  flex-direction:column;
+  gap: 12px;
+}
+
+.primary{
+  padding: 12px 14px;
+  border: none;
+  border-radius: 14px;
+  background: #2a6cff;
+  color: white;
+  font-weight: 700;
+  font-size: 16px;
+}
+.primary[disabled]{ opacity: 0.6; }
+
+.loading{
+  display:flex; align-items:center; gap: 10px;
+  padding: 10px; border: 1px dashed #444; border-radius: 14px;
+}
+.loadingText{ color:#ddd; }
+
+.spinner{
+  width: 18px; height: 18px;
+  border: 3px solid #444;
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin{ to { transform: rotate(360deg); } }
+
+.report{
+  border: 1px solid #333;
+  border-radius: 14px;
+  padding: 10px;
+  background: #0b0b0b;
+}
+.reportHeader{ display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; }
+.reportTitle{ font-weight: 800; }
+.ghost{
+  padding: 6px 10px;
+  border: 1px solid #333;
+  background: transparent;
+  color: #eee;
+  border-radius: 12px;
+}
+pre{
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #eaeaea;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.error{
+  border: 1px solid #662;
+  background: #221;
+  color: #f6d;
+  padding: 10px;
+  border-radius: 14px;
+}
+
+.hidden{ display:none; }

@@ -1,0 +1,249 @@
+:root{
+  --topbar-h: 56px;
+  --bg: #0b0f14;
+  --panel: rgba(18,24,32,.92);
+  --text: #e7eef7;
+  --muted: rgba(231,238,247,.65);
+  --border: rgba(231,238,247,.12);
+}
+
+*{ box-sizing:border-box; }
+
+html, body{
+  height:100%;
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto,
+               "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+}
+
+.topbar{
+  height: var(--topbar-h);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(10,14,20,.85);
+  backdrop-filter: blur(8px);
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 50;
+}
+
+.brand{
+  font-weight: 800;
+  letter-spacing:.3px;
+}
+
+.tabs{
+  display:flex;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255,255,255,.04);
+}
+
+.tab{
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 650;
+  text-decoration:none;
+}
+
+.tab.active{
+  background: rgba(255,255,255,.12);
+  color: var(--text);
+}
+
+.actions{
+  display:flex;
+  gap: 8px;
+}
+
+.btn{
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.layout{
+  position: fixed;
+  top: var(--topbar-h);
+  left: 0; right: 0; bottom: 0;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 0;
+}
+
+.leftPane{
+  border-right: 1px solid var(--border);
+  background: rgba(255,255,255,.02);
+  display:flex;
+  flex-direction: column;
+  min-width: 260px;
+}
+
+.rightPane{
+  display:flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.paneTitle{
+  padding: 10px 12px;
+  font-weight: 800;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,.02);
+}
+
+.photoList{
+  overflow: auto;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.card{
+  display:flex;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 8px;
+  background: rgba(255,255,255,.03);
+  cursor: pointer;
+}
+
+.card:hover{
+  background: rgba(255,255,255,.06);
+}
+
+.card.active{
+  outline: 2px solid rgba(231,238,247,.35);
+}
+
+.thumb{
+  width: 92px;
+  height: 70px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #000;
+  flex: 0 0 auto;
+}
+
+.cardMeta{
+  min-width: 0;
+  display:flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardTitle{
+  font-weight: 750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardSub{
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.titleText{
+  font-weight: 850;
+}
+
+.metaText{
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.detail{
+  display:grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 12px;
+  padding: 12px;
+  min-height: 0; /* Allow inner scrolling */
+  flex: 1;
+}
+
+.previewWrap{
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #000;
+  min-height: 0;
+}
+
+.preview{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display:block;
+  background:#000;
+}
+
+.reportWrap{
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255,255,255,.03);
+  display:flex;
+  flex-direction: column;
+  min-height: 0; /* Allow report scrolling */
+}
+
+.reportHeader{
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+}
+
+.reportTitle{
+  font-weight: 850;
+}
+
+.reportStatus{
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.report{
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgba(231,238,247,.92);
+  line-height: 1.45;
+  flex: 1;
+}
+
+@media (max-width: 980px){
+  .layout{
+    grid-template-columns: 1fr;
+  }
+
+  .leftPane{
+    display:none; /* Hide left pane on small screens; can be replaced by a drawer later */
+  }
+
+  .detail{
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Thermal - History</title>
+  <link rel="stylesheet" href="/pages/history/history.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Thermal App</div>
+
+    <nav class="tabs" aria-label="Pages">
+      <a class="tab" href="/pages/capture/">Capture</a>
+      <a class="tab active" href="/pages/history/">History</a>
+    </nav>
+
+    <div class="actions">
+      <button id="btnRefresh" class="btn">Refresh</button>
+      <button id="btnDelete" class="btn">Delete</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Left: photo list -->
+    <section class="leftPane">
+      <div class="paneTitle">Images</div>
+      <div id="photoList" class="photoList"></div>
+    </section>
+
+    <!-- Right: report + large preview -->
+    <section class="rightPane">
+      <div class="paneTitle">
+        <div>
+          <div id="titleText" class="titleText">Select an image</div>
+          <div id="metaText" class="metaText"></div>
+        </div>
+      </div>
+
+      <div class="detail">
+        <div class="previewWrap">
+          <img id="preview" class="preview" alt="Image preview" />
+        </div>
+
+        <div class="reportWrap">
+          <div class="reportHeader">
+            <div class="reportTitle">Analysis Report</div>
+            <div id="reportStatus" class="reportStatus"></div>
+          </div>
+          <pre id="report" class="report">
+The analysis report will be displayed here (scrollable).
+          </pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/pages/history/history.js"></script>
+</body>
+</html>

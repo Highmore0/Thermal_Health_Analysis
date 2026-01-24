@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Processing & Analysis</title>
+  <link rel="stylesheet" href="./process.css" />
+</head>
+<body>
+  <header class="topbar">
+    <button id="btnBack" class="navbtn">← Back to Capture</button>
+    <div class="title">Processing & Analysis</div>
+    <button id="btnHistory" class="navbtn">Go to History →</button>
+  </header>
+
+  <main class="container">
+    <section class="frame">
+      <img id="shotImg" alt="Captured snapshot" />
+      <div id="imgHint" class="hint"></div>
+    </section>
+
+    <section class="panel">
+      <button id="btnAnalyze" class="primary">Get Analysis Report</button>
+
+      <div id="loading" class="loading hidden" aria-live="polite">
+        <div class="spinner"></div>
+        <div class="loadingText">Generating analysis report…</div>
+      </div>
+
+      <section id="reportBox" class="report hidden">
+        <div class="reportHeader">
+          <div class="reportTitle">Analysis Report</div>
+          <button id="btnCopy" class="ghost">Copy</button>
+        </div>
+        <pre id="reportText"></pre>
+      </section>
+
+      <div id="errBox" class="error hidden"></div>
+    </section>
+  </main>
+
+  <script src="./process.js"></script>
+</body>
+</html>

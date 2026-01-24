@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Thermal - Capture</title>
+  <link rel="stylesheet" href="/pages/capture/capture.css" />
+</head>
+<body>
+  <!-- Top navigation bar -->
+  <header class="topbar">
+    <div class="brand">Thermal App</div>
+
+    <nav class="tabs" aria-label="Pages">
+      <a class="tab active" href="/pages/capture/">Capture</a>
+      <a class="tab" href="/pages/history/">History</a>
+    </nav>
+
+    <button id="btnSettings" class="iconbtn" title="Settings" aria-label="Settings">⚙️</button>
+  </header>
+
+  <!-- Main stage (fullscreen between topbar and bottombar) -->
+  <main class="stage">
+    <img id="mjpg" class="preview" alt="Thermal stream" />
+    <div id="hud" class="hud"></div>
+  </main>
+
+  <!-- Settings drawer (hidden by default, click the gear icon to open) -->
+  <aside id="settingsDrawer" class="drawer hidden" aria-label="Settings panel">
+    <div class="drawerHeader">
+      <div class="drawerTitle">Capture Settings</div>
+      <button id="btnCloseSettings" class="iconbtn" aria-label="Close settings">✕</button>
+    </div>
+
+    <div class="drawerBody">
+      <!-- Operator / captured-by -->
+      <div class="row">
+        <label>Captured by</label>
+        <input id="operator" type="text" maxlength="64" placeholder="e.g., Alice" />
+      </div>
+
+      <div class="row">
+        <label>View</label>
+        <select id="half">
+          <option value="auto">auto</option>
+          <option value="top">top</option>
+          <option value="bottom">bottom</option>
+          <option value="full">full</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Mode</label>
+        <select id="mode">
+          <option value="color">color</option>
+          <option value="gray">gray</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Colormap</label>
+        <select id="cm">
+          <option value="inferno">inferno</option>
+          <option value="magma">magma</option>
+          <option value="plasma">plasma</option>
+          <option value="turbo">turbo</option>
+          <option value="viridis">viridis</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Stretch</label>
+        <select id="stretch">
+          <option value="1">On</option>
+          <option value="0">Off</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Output width</label>
+        <input id="ow" type="number" min="64" step="1" />
+      </div>
+
+      <div class="row">
+        <label>Output height</label>
+        <input id="oh" type="number" min="64" step="1" />
+      </div>
+
+      <div class="row">
+        <label>Keep aspect</label>
+        <select id="keep">
+          <option value="1">Yes</option>
+          <option value="0">No</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Rotate</label>
+        <select id="rot">
+          <option value="0">0</option>
+          <option value="90">90</option>
+          <option value="180">180</option>
+          <option value="270">270</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Flip</label>
+        <select id="flip">
+          <option value="0">0</option>
+          <option value="1">Horizontal</option>
+          <option value="2">Vertical</option>
+          <option value="3">Both</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Show HUD</label>
+        <select id="showHud">
+          <option value="1">Show</option>
+          <option value="0">Hide</option>
+        </select>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Bottom bar -->
+  <footer class="bottombar">
+    <div class="leftHint">
+      <div id="statusText">Ready</div>
+      <div class="subHint">Captured by: <span id="operatorLabel">—</span></div>
+    </div>
+
+    <!-- Shutter button -->
+    <button id="btnShutter" class="shutter" aria-label="Shutter"></button>
+
+    <div class="rightHint">
+      <span id="lastShot"></span>
+    </div>
+  </footer>
+
+  <script src="/pages/capture/capture.js"></script>
+</body>
+</html>
