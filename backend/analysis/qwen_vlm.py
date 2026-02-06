@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import os
 import requests
+from dotenv import load_dotenv
 from typing import Any, Dict, Optional
 
 
@@ -17,6 +18,12 @@ DEFAULT_MODEL = "qwen-vl-plus"
 
 # 默认超时（秒），可用环境变量覆盖：QWEN_TIMEOUT
 DEFAULT_TIMEOUT = 60
+
+
+def _load_env() -> None:
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    load_dotenv(os.path.join(root_dir, ".env"), override=True)
+    load_dotenv(os.path.join(root_dir, "default.env"), override=False)
 
 
 def _to_data_url(image_bytes: bytes, mime: str = "image/jpeg") -> str:
@@ -41,11 +48,15 @@ def analyze_image(
       response["choices"][0]["message"]["content"]
     """
 
+    _load_env()
     api_key = os.getenv("DASHSCOPE_API_KEY")
     if not api_key:
         raise RuntimeError("DASHSCOPE_API_KEY not set")
     
-    print("API Key:", api_key)  # Debug line to verify API key is loaded
+    print("API Key repr:", repr(api_key))
+    api_key = api_key.strip()
+    print("API Key stripped repr:", repr(api_key))
+    print("base url:", os.getenv("DASHSCOPE_BASE_URL"))
 
     base_url = os.getenv("DASHSCOPE_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
     use_model = model or os.getenv("QWEN_VL_MODEL", DEFAULT_MODEL)
