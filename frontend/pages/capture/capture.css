@@ -201,3 +201,68 @@ a{ color:inherit; text-decoration:none; }
   color: var(--text);
   outline: none;
 }
+
+/* Freeze canvas overlay */
+.freeze {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 20;
+}
+
+/* Countdown overlay */
+.countdown {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 96px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(0,0,0,.8);
+  background: rgba(0,0,0,.15);
+}
+
+/* If you already have .hidden, keep using it.
+   Otherwise, define it here. */
+.hidden {
+  display: none !important;
+}
+
+/* Small gray upload button (bottom-left) */
+.upload-btn {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+
+  border: none;
+  background: #888;
+  color: white;
+  font-size: 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+
+  transition: all 0.15s ease;
+}
+
+.upload-btn:hover {
+  background: #777;
+  transform: scale(1.05);
+}
+
+.upload-btn:active {
+  background: #666;
+  transform: scale(0.98);
+}

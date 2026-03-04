@@ -19,13 +19,27 @@
     <button id="btnSettings" class="iconbtn" title="Settings" aria-label="Settings">⚙️</button>
   </header>
 
-  <!-- Main stage (fullscreen between topbar and bottombar) -->
+  <!-- Main stage -->
   <main class="stage">
+    <!-- Live MJPEG stream -->
     <img id="mjpg" class="preview" alt="Thermal stream" />
+
+    <!-- Freeze canvas -->
+    <canvas id="freezeCanvas" class="freeze hidden"></canvas>
+
+    <!-- Countdown overlay -->
+    <div id="countdownOverlay" class="countdown hidden" aria-hidden="true">
+      <span id="countdownText">3</span>
+    </div>
+
     <div id="hud" class="hud"></div>
+
+    <!-- Small gray upload button (bottom-left) -->
+    <button id="btnUploadLocal" class="upload-btn" aria-label="Upload local image">⬆</button>
+    <input id="fileInput" type="file" accept="image/jpeg,image/png" style="display:none;" />
   </main>
 
-  <!-- Settings drawer (hidden by default, click the gear icon to open) -->
+  <!-- Settings drawer -->
   <aside id="settingsDrawer" class="drawer hidden" aria-label="Settings panel">
     <div class="drawerHeader">
       <div class="drawerTitle">Capture Settings</div>
@@ -33,7 +47,6 @@
     </div>
 
     <div class="drawerBody">
-      <!-- Operator / captured-by -->
       <div class="row">
         <label>Captured by</label>
         <input id="operator" type="text" maxlength="64" placeholder="e.g., Alice" />
@@ -119,6 +132,14 @@
         <select id="showHud">
           <option value="1">Show</option>
           <option value="0">Hide</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Capture Mode</label>
+        <select id="shotMode">
+          <option value="instant">Instant</option>
+          <option value="timer3">3-second Timer</option>
         </select>
       </div>
     </div>

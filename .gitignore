@@ -27,3 +27,5 @@ Thumbs.db
 *.db
 *.sqlite3
 *.sqlite
+*.json
+*.txt

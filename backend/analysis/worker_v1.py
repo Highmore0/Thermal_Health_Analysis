@@ -4,7 +4,6 @@ from __future__ import annotations
 import io
 import json
 import re
-from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, List
 
 import numpy as np
@@ -15,26 +14,8 @@ from backend.db.photos import (
     db_get_temp_matrix_npy,
 )
 from backend.analysis.qwen_vlm import analyze_image_one_prompt
-from backend.analysis.prompt_visible import THERMAL_VISIBILITY_PROMPT
-from backend.analysis.prompt_health import THERMAL_HEALTH_PROMPT
-
-
-# -----------------------------
-# Local results folder (always on)
-# -----------------------------
-_RESULTS_DIR = Path(__file__).resolve().parent / "results"
-_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _write_text(path: Path, s: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(s if s is not None else "", encoding="utf-8")
-
-
-def _write_json(path: Path, obj: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    s = json.dumps(obj, ensure_ascii=False, indent=2, default=str)
-    path.write_text(s, encoding="utf-8")
+from backend.analysis.prompt_visible import (
+    THERMAL_VISIBILITY_PROMPT)
 
 
 # -----------------------------
@@ -107,22 +88,21 @@ def _load_temp_matrix(photo_id: int) -> Tuple[Optional[np.ndarray], Dict[str, An
 
     tm = tm.astype(np.float32, copy=False)
 
+    # Flatten finite values for robust stats
     flat = tm[np.isfinite(tm)]
     if flat.size == 0:
         return None, meta
 
-    meta.update(
-        {
-            "matrix_available": True,
-            "matrix_shape": [int(tm.shape[0]), int(tm.shape[1])],
-            "max_temp": float(np.max(flat)),
-            "min_temp": float(np.min(flat)),
-            "mean_temp": float(np.mean(flat)),
-            "p10": float(np.percentile(flat, 10)),
-            "p50": float(np.percentile(flat, 50)),
-            "p90": float(np.percentile(flat, 90)),
-        }
-    )
+    meta.update({
+        "matrix_available": True,
+        "matrix_shape": [int(tm.shape[0]), int(tm.shape[1])],
+        "max_temp": float(np.max(flat)),
+        "min_temp": float(np.min(flat)),
+        "mean_temp": float(np.mean(flat)),
+        "p10": float(np.percentile(flat, 10)),
+        "p50": float(np.percentile(flat, 50)),
+        "p90": float(np.percentile(flat, 90)),
+    })
     return tm, meta
 
 
@@ -167,6 +147,8 @@ def _compute_region_grid_stats(tm_small: np.ndarray) -> List[Dict[str, Any]]:
     def clip(a, lo, hi):
         return max(lo, min(hi, a))
 
+    # Define y bands (fractions)
+    # These are heuristics: head/neck/top trunk/mid trunk/pelvis/legs/feet.
     y0 = 0
     y_head_end = clip(int(round(h * 0.15)), 1, h)
     y_neck_end = clip(int(round(h * 0.25)), 1, h)
@@ -176,12 +158,13 @@ def _compute_region_grid_stats(tm_small: np.ndarray) -> List[Dict[str, Any]]:
     y_thigh_end = clip(int(round(h * 0.86)), 1, h)
     y_end = h
 
+    # Define x zones
     x_left = 0
     x_left_end = clip(int(round(w * 0.33)), 1, w)
     x_center_end = clip(int(round(w * 0.67)), 1, w)
     x_end = w
 
-    regions: List[Dict[str, Any]] = []
+    regions = []
 
     def add_region(name: str, ys: Tuple[int, int], xs: Tuple[int, int], note: str):
         y1, y2 = ys
@@ -190,30 +173,42 @@ def _compute_region_grid_stats(tm_small: np.ndarray) -> List[Dict[str, Any]]:
             return
         blk = tm_small[y1:y2, x1:x2]
         st = _region_stat(blk)
-        regions.append(
-            {
-                "name": name,
-                "y_range": [int(y1), int(y2)],
-                "x_range": [int(x1), int(x2)],
-                **st,
-                "note": note,
-            }
-        )
+        regions.append({
+            "name": name,
+            "y_range": [int(y1), int(y2)],
+            "x_range": [int(x1), int(x2)],
+            **st,
+            "note": note,
+        })
 
-    add_region("head_center", (y0, y_head_end), (x_left_end, x_center_end), "Approx head/face zone (grid-based).")
-    add_region("neck_center", (y_head_end, y_neck_end), (x_left_end, x_center_end), "Approx neck zone (grid-based).")
-    add_region("chest_center", (y_neck_end, y_chest_end), (x_left_end, x_center_end), "Approx upper trunk zone (grid-based).")
-    add_region("abdomen_center", (y_chest_end, y_abd_end), (x_left_end, x_center_end), "Approx mid trunk zone (grid-based).")
-    add_region("pelvis_center", (y_abd_end, y_pelvis_end), (x_left_end, x_center_end), "Approx pelvis/hip zone (grid-based).")
+    # Center trunk bands
+    add_region("head_center", (y0, y_head_end), (x_left_end, x_center_end),
+               "Approx head/face zone (grid-based).")
+    add_region("neck_center", (y_head_end, y_neck_end), (x_left_end, x_center_end),
+               "Approx neck zone (grid-based).")
+    add_region("chest_center", (y_neck_end, y_chest_end), (x_left_end, x_center_end),
+               "Approx upper trunk zone (grid-based).")
+    add_region("abdomen_center", (y_chest_end, y_abd_end), (x_left_end, x_center_end),
+               "Approx mid trunk zone (grid-based).")
+    add_region("pelvis_center", (y_abd_end, y_pelvis_end), (x_left_end, x_center_end),
+               "Approx pelvis/hip zone (grid-based).")
 
-    add_region("thighs_center", (y_pelvis_end, y_thigh_end), (x_left_end, x_center_end), "Approx upper legs zone (grid-based).")
-    add_region("lower_legs_center", (y_thigh_end, y_end), (x_left_end, x_center_end), "Approx lower legs/feet zone (grid-based).")
+    # Lower body center
+    add_region("thighs_center", (y_pelvis_end, y_thigh_end), (x_left_end, x_center_end),
+               "Approx upper legs zone (grid-based).")
+    add_region("lower_legs_center", (y_thigh_end, y_end), (x_left_end, x_center_end),
+               "Approx lower legs/feet zone (grid-based).")
 
-    add_region("left_side_mid", (y_neck_end, y_pelvis_end), (x_left, x_left_end), "Approx left side mid-body (may include left arm/background).")
-    add_region("right_side_mid", (y_neck_end, y_pelvis_end), (x_center_end, x_end), "Approx right side mid-body (may include right arm/background).")
+    # Side zones (often include arms/outer legs + background; still useful for asymmetry hints)
+    add_region("left_side_mid", (y_neck_end, y_pelvis_end), (x_left, x_left_end),
+               "Approx left side mid-body (may include left arm/background).")
+    add_region("right_side_mid", (y_neck_end, y_pelvis_end), (x_center_end, x_end),
+               "Approx right side mid-body (may include right arm/background).")
 
-    add_region("left_side_lower", (y_pelvis_end, y_end), (x_left, x_left_end), "Approx left lower side (may include left leg/background).")
-    add_region("right_side_lower", (y_pelvis_end, y_end), (x_center_end, x_end), "Approx right lower side (may include right leg/background).")
+    add_region("left_side_lower", (y_pelvis_end, y_end), (x_left, x_left_end),
+               "Approx left lower side (may include left leg/background).")
+    add_region("right_side_lower", (y_pelvis_end, y_end), (x_center_end, x_end),
+               "Approx right lower side (may include right leg/background).")
 
     return regions
 
@@ -224,6 +219,7 @@ def _find_hot_cold_points(tm_small: np.ndarray) -> Dict[str, Any]:
     if not np.any(flat_mask):
         return {"hotspot": None, "coldspot": None}
 
+    # Use masked values
     vals = np.where(flat_mask, tm_small, np.nan)
 
     hot_idx = np.nanargmax(vals)
@@ -319,30 +315,21 @@ def _build_injected_temperature_text(
 
     tm_small = _downsample_matrix(tm, stride_y, stride_x)
     payload["downsampled_shape"] = [int(tm_small.shape[0]), int(tm_small.shape[1])]
+
+    # Keep downsampled matrix as list of lists (manageable)
     payload["temp_matrix_downsampled"] = tm_small.tolist()
 
+    # Coarse grid-based region stats
     regions = _compute_region_grid_stats(tm_small)
     payload["region_grid_stats"] = regions
 
+    # Hot/cold points on downsampled grid
     payload["points"] = _find_hot_cold_points(tm_small)
+
+    # Simple derived indices
     payload["indices"] = _compute_indices(regions)
 
     return "SYSTEM_TEMPERATURE_FEATURES_JSON=" + json.dumps(payload, ensure_ascii=False)
-
-
-# -----------------------------
-# Stage2 injection helpers (stage1 JSON -> stage2)
-# -----------------------------
-def _build_stage2_inject_text(*, stage1_obj: Any, extra_inject_text: Optional[str] = None) -> str:
-    stage1_str = json.dumps(stage1_obj, ensure_ascii=False, separators=(",", ":"))
-    parts = [
-        "### Stage1 Output (Full JSON)\n"
-        "Below is the full JSON output from stage1. Use it as structured evidence for stage2.\n"
-        f"{stage1_str}"
-    ]
-    if extra_inject_text:
-        parts.append("\n\n### Extra Injected Data\n" + extra_inject_text.strip())
-    return "\n\n".join(parts).strip()
 
 
 # -----------------------------
@@ -355,14 +342,17 @@ def _normalize_for_frontend(merged: Dict[str, Any]) -> Dict[str, Any]:
     stage1 = merged.get("stage1") if isinstance(merged.get("stage1"), dict) else {}
     stage2 = merged.get("stage2") if isinstance(merged.get("stage2"), dict) else {}
 
+    # Some UIs still expect is_thermal; keep as None unless your prompt includes it
     is_thermal = _pick(stage1, "is_thermal", default=None)
+
     visibility_assessment = _pick(stage1, "occlusion_assessment", "visibility_assessment", default=None)
 
+    # Keep "temperature_analysis" as the stage1 abnormality screen (or temperature_analysis)
     temperature_analysis = _pick(
         stage1,
         "temperature_abnormality_screen",
         "temperature_analysis",
-        default=None,
+        default=None
     )
 
     overall_risk_level = _pick(stage2, "overall_risk_level", default="unknown")
@@ -377,47 +367,10 @@ def _normalize_for_frontend(merged: Dict[str, Any]) -> Dict[str, Any]:
         "health_advice": _pick(stage2, "health_advice", default=None),
         "fat_distribution_inference": _pick(stage2, "fat_distribution_inference", default=None),
         "pattern_findings": _pick(stage2, "pattern_findings", default=None),
-        # Keep the raw two-stage payload for debugging / audit / later UI expansion.
         "_raw": merged,
     }
 
     return {k: v for k, v in out.items() if v is not None}
-
-
-def _make_progress_payload(
-    *,
-    photo_id: int,
-    tm_meta: Dict[str, Any],
-    stage1_obj: Dict[str, Any],
-    stage2_obj: Optional[Dict[str, Any]],
-    stage: int,
-    status: str,
-) -> Tuple[str, Dict[str, Any]]:
-    """
-    Build a frontend-friendly payload and report text for progressive rendering.
-    This updates DB after stage1 and again after stage2.
-    """
-    merged: Dict[str, Any] = {
-        "injected_temperature_meta": tm_meta,
-        "stage1": stage1_obj,
-        "stage2": stage2_obj or {},
-    }
-
-    legacy_json = _normalize_for_frontend(merged)
-
-    # Add a small, stable progress marker for the frontend.
-    legacy_json["_progress"] = {
-        "photo_id": int(photo_id),
-        "stage": int(stage),
-        "status": str(status),
-    }
-
-    # Prefer the model-provided summary when available; fall back to a generic message.
-    report_text = legacy_json.get("summary") or (
-        "Stage1 completed." if stage == 1 else "Analysis completed."
-    )
-
-    return report_text, legacy_json
 
 
 # -----------------------------
@@ -425,13 +378,9 @@ def _make_progress_payload(
 # -----------------------------
 def analyze_photo(photo_id: int) -> Dict[str, Any]:
     """
-    Two-stage analysis (sequential, stage1 -> stage2):
-    - Stage1: inject downsampled matrix + region stats
-    - Persist stage1 results immediately for progressive UI rendering
-    - Stage2: inject FULL stage1 JSON + (optional) the same temperature features
-    - Persist final merged results (stage2) for progressive UI rendering
+    Two-stage analysis:
+    - Inject downsampled matrix + region stats into both stages
     - Parse JSON outputs
-    - Save stage1/stage2 JSON into ./results (next to this worker.py)
     - Store legacy-compatible JSON for frontend rendering
     """
     jpg = db_get_jpeg(photo_id)
@@ -441,84 +390,61 @@ def analyze_photo(photo_id: int) -> Dict[str, Any]:
     if isinstance(jpg, memoryview):
         jpg = jpg.tobytes()
 
-    # Load temperature matrix and compute global stats.
+    # Load temperature matrix and compute global stats
     tm, tm_meta = _load_temp_matrix(photo_id)
 
-    # Build injected features text for stage1.
-    injected_tm_text = _build_injected_temperature_text(
+    # Build injected features text (downsample + region stats)
+    injected_text = _build_injected_temperature_text(
         tm,
         tm_meta,
         stride_y=4,
         stride_x=4,
     )
 
-    # -------- Stage 1 --------
-    resp1 = analyze_image_one_prompt(
-        image_bytes=jpg,
-        prompt=THERMAL_VISIBILITY_PROMPT,
-        temperature=0.1,
-        max_tokens=2000,
-        inject_text=injected_tm_text,
-    )
-    stage1_text = resp1.get("content", "")
-    stage1_json = _safe_parse_json(stage1_text)
-    stage1_obj: Dict[str, Any] = stage1_json if isinstance(stage1_json, dict) else {"raw_text": stage1_text}
+    prompt_a = THERMAL_VISIBILITY_PROMPT
+    prompt_b = THERMAL_HEALTH_PROMPT
 
-    # Save stage1 outputs locally.
-    _write_text(_RESULTS_DIR / f"{photo_id}_stage1_raw.txt", stage1_text)
-    _write_json(_RESULTS_DIR / f"{photo_id}_stage1.json", stage1_obj)
+    supports_inject_params = False
+    try:
+        # Preferred: qwen_vlm supports inject_text_a/inject_text_b
+        result = analyze_image_two_prompts(
+            image_bytes=jpg,
+            prompt_a=prompt_a,
+            prompt_b=prompt_b,
+            temperature=0.1,
+            max_tokens=2000,
+            inject_text_a=injected_text,
+            inject_text_b=injected_text,
+        )
+        supports_inject_params = True
+    except TypeError:
+        # Fallback: prepend injected data to the prompt
+        prompt_a2 = injected_text + "\n\n" + prompt_a
+        prompt_b2 = injected_text + "\n\n" + prompt_b
+        result = analyze_image_two_prompts(
+            image_bytes=jpg,
+            prompt_a=prompt_a2,
+            prompt_b=prompt_b2,
+            temperature=0.1,
+            max_tokens=2000,
+        )
 
-    # Persist stage1 payload to DB so the frontend can render step-by-step.
-    report_text_s1, legacy_s1 = _make_progress_payload(
-        photo_id=photo_id,
-        tm_meta=tm_meta,
-        stage1_obj=stage1_obj,
-        stage2_obj=None,
-        stage=1,
-        status="stage1_done",
-    )
-    db_upsert_analysis(photo_id, "stage1_done", report_text_s1, legacy_s1)
+    a_text = result["prompt_a"]["content"]
+    b_text = result["prompt_b"]["content"]
 
-    # -------- Stage 2 --------
-    # Inject full stage1 JSON into stage2, plus optional extra injected data (here: temperature features).
-    stage2_inject = _build_stage2_inject_text(stage1_obj=stage1_obj, extra_inject_text=injected_tm_text)
+    a_json = _safe_parse_json(a_text)
+    b_json = _safe_parse_json(b_text)
 
-    resp2 = analyze_image_one_prompt(
-        image_bytes=jpg,
-        prompt=THERMAL_HEALTH_PROMPT,
-        temperature=0.1,
-        max_tokens=2000,
-        inject_text=stage2_inject,
-    )
-    stage2_text = resp2.get("content", "")
-    stage2_json = _safe_parse_json(stage2_text)
-    stage2_obj: Dict[str, Any] = stage2_json if isinstance(stage2_json, dict) else {"raw_text": stage2_text}
-
-    # Save stage2 outputs locally.
-    _write_text(_RESULTS_DIR / f"{photo_id}_stage2_raw.txt", stage2_text)
-    _write_json(_RESULTS_DIR / f"{photo_id}_stage2.json", stage2_obj)
-
-    # -------- Merge + normalize for frontend --------
     merged: Dict[str, Any] = {
         "injected_temperature_meta": tm_meta,
-        "stage1": stage1_obj,
-        "stage2": stage2_obj,
+        "injection_mode": "kwargs" if supports_inject_params else "prompt_prepend",
+        "stage1": a_json if a_json is not None else {"raw_text": a_text},
+        "stage2": b_json if b_json is not None else {"raw_text": b_text},
     }
 
-    # Also save the merged/legacy payload locally for convenience.
-    _write_json(_RESULTS_DIR / f"{photo_id}_merged.json", merged)
+    legacy_json = _normalize_for_frontend(merged)
+    report_text = legacy_json.get("summary") or "Analysis completed."
 
-    # Build final payload and persist to DB.
-    report_text_s2, legacy_s2 = _make_progress_payload(
-        photo_id=photo_id,
-        tm_meta=tm_meta,
-        stage1_obj=stage1_obj,
-        stage2_obj=stage2_obj,
-        stage=2,
-        status="done",
-    )
-    _write_json(_RESULTS_DIR / f"{photo_id}_legacy.json", legacy_s2)
+    db_upsert_analysis(photo_id, "done", report_text, legacy_json)
 
-    db_upsert_analysis(photo_id, "done", report_text_s2, legacy_s2)
-
-    return {"status": "done", "text": report_text_s2, "json": legacy_s2}
+    return {"status": "done", "text": report_text, "json": legacy_json}

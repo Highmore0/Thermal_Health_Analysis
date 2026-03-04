@@ -17,44 +17,62 @@
 
     <div class="actions">
       <button id="btnRefresh" class="btn">Refresh</button>
-      <button id="btnDelete" class="btn">Delete</button>
+      <button id="btnDelete" class="btn danger">Delete</button>
     </div>
   </header>
 
   <main class="layout">
-    <!-- Left: photo list -->
+    <!-- Left: list -->
     <section class="leftPane">
       <div class="paneTitle">Images</div>
-      <div id="photoList" class="photoList"></div>
+      <div id="photoList" class="photoList" role="listbox" aria-label="History images"></div>
     </section>
 
-    <!-- Right: report + large preview -->
+    <!-- Right: preview + report -->
     <section class="rightPane">
-      <div class="paneTitle">
+      <div class="paneTitle rightTitleRow">
         <div>
           <div id="titleText" class="titleText">Select an image</div>
           <div id="metaText" class="metaText"></div>
+        </div>
+
+        <div class="rightActions">
+          <a id="btnDownloadTm" class="btnLink hidden" href="#" download>Download TM</a>
         </div>
       </div>
 
       <div class="detail">
         <div class="previewWrap">
           <img id="preview" class="preview" alt="Image preview" />
+          <div id="previewErr" class="hint hidden"></div>
         </div>
 
         <div class="reportWrap">
           <div class="reportHeader">
             <div class="reportTitle">Analysis Report</div>
-            <div id="reportStatus" class="reportStatus"></div>
+            <div class="reportHeaderRight">
+              <div id="reportStatus" class="reportStatus"></div>
+              <button id="btnCopy" class="btn small">Copy</button>
+            </div>
           </div>
-          <pre id="report" class="report">
-The analysis report will be displayed here (scrollable).
-          </pre>
+
+          <section id="reportBox" class="report">
+            <div id="reportText" class="reportBody">
+              <div class="reportSection">
+                <div class="reportH">Report</div>
+                <p class="reportP muted">No selection.</p>
+              </div>
+            </div>
+          </section>
+
+          <div id="errBox" class="error hidden"></div>
         </div>
       </div>
     </section>
   </main>
 
+  <!-- IMPORTANT: renderer first -->
+  <script src="/pages/process/report_render.js"></script>
   <script src="/pages/history/history.js"></script>
 </body>
 </html>

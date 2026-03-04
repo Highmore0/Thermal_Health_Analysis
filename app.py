@@ -1,5 +1,10 @@
+# app.py
 import time
-from flask import Flask, Response, request, jsonify, abort, send_from_directory, redirect
+import threading
+import secrets
+from pathlib import Path
+
+from flask import Flask, Response, request, jsonify, abort, send_from_directory, redirect, url_for
 
 from backend.capture.camera import CameraService, parse_int
 from backend import config
@@ -12,25 +17,22 @@ from backend.db.photos import (
     db_delete_analysis,
     db_upsert_analysis,
     db_get_analysis,
+    db_upsert_temp_matrix,
+    db_get_temp_matrix_npy,
+    db_delete_temp_matrix,
 )
 
-from flask import Flask, jsonify
-from backend.analysis.worker import analyze_photo
-
-from pathlib import Path
-
-import threading
-from backend.db.photos import db_upsert_analysis
 from backend.analysis.worker import analyze_photo
 
 from dotenv import load_dotenv
-load_dotenv()  # 默认会找当前工作目录下的 .env
+load_dotenv()  
 
 
 def create_app() -> Flask:
     BASE_DIR = Path(__file__).resolve().parent
     FRONTEND_DIR = BASE_DIR / "frontend"
     CAPTURE_DIR = FRONTEND_DIR / "pages" / "capture"
+    PROCESS_DIR = FRONTEND_DIR / "pages" / "process"
 
     app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
 
@@ -82,7 +84,6 @@ def create_app() -> Flask:
                     time.sleep(0.01)
                     continue
 
-                # 更新 stats
                 with cam.lock:
                     cam.latest_info.update({
                         "dev": config.DEV,
@@ -111,7 +112,13 @@ def create_app() -> Flask:
     def history_page():
         return send_from_directory(str((FRONTEND_DIR / "pages/history").resolve()), "index.html")
 
+    @app.route("/pages/process/")
+    def process_page():
+        return send_from_directory(str(PROCESS_DIR.resolve()), "index.html")
 
+    # --------------------------
+    # Snapshot:
+    # --------------------------
     @app.post("/api/snapshot")
     def api_snapshot():
         try:
@@ -133,9 +140,18 @@ def create_app() -> Flask:
         if len(name) > 128:
             name = name[:128]
 
-        Y0 = cam.get_latest_y_copy()
-        if Y0 is None:
-            Y0 = cam.read_y_from_cap()
+        bundle = None
+        if hasattr(cam, "get_latest_bundle_copy"):
+            bundle = cam.get_latest_bundle_copy()
+
+        if bundle is not None:
+            Y0, tm0, _stats0 = bundle
+        else:
+            Y0 = cam.get_latest_y_copy()
+            if Y0 is None:
+                Y0 = cam.read_y_from_cap()
+            tm0 = cam.get_latest_temp_c_copy() if hasattr(cam, "get_latest_temp_c_copy") else None
+
         if Y0 is None:
             return jsonify({"error": "no frame"}), 503
 
@@ -156,9 +172,17 @@ def create_app() -> Flask:
         }
 
         photo_id = db_insert_photo(ts, name, int(info["min"]), int(info["max"]), float(info["mean"]), params, jpg)
-        return jsonify({"ok": True, "id": photo_id, "ts": ts, "name": name})
 
-    # （可选）给你后面 gallery/history 用
+
+        if tm0 is not None:
+            try:
+                db_upsert_temp_matrix(photo_id, ts, tm0, compress="f16")
+            except Exception:
+                pass
+
+        return jsonify({"ok": True, "id": photo_id, "ts": ts, "name": name, "has_temp": bool(tm0 is not None)})
+
+
     @app.get("/api/photos")
     def api_photos():
         limit = parse_int(request.args.get("limit", 200), 200)
@@ -178,13 +202,20 @@ def create_app() -> Flask:
         resp.headers["Cache-Control"] = "no-store"
         return resp
 
-    
-    PROCESS_DIR = FRONTEND_DIR / "pages" / "process"
 
-    @app.route("/pages/process/")
-    def process_page():
-        return send_from_directory(str(PROCESS_DIR.resolve()), "index.html")
-    
+    @app.get("/api/photo/<int:photo_id>.tm.npy")
+    def api_photo_tm(photo_id: int):
+        blob = db_get_temp_matrix_npy(photo_id)
+        if blob is None:
+            abort(404)
+        resp = Response(blob, mimetype="application/octet-stream")
+        resp.headers["Cache-Control"] = "no-store"
+        resp.headers["Content-Disposition"] = f'attachment; filename="photo_{photo_id}_tm.npy"'
+        return resp
+
+    # --------------------------
+    # Analyze
+    # --------------------------
     @app.post("/api/analyze")
     def api_analyze():
         try:
@@ -201,48 +232,112 @@ def create_app() -> Flask:
         except Exception:
             return jsonify({"error": "photo_id must be int"}), 400
 
-        # 直接复用同一套逻辑：调用上面的 /api/analyze/<id>
         return api_analyze_photo(photo_id)
 
-    
     @app.post("/api/analyze/<int:photo_id>")
     def api_analyze_photo(photo_id: int):
-        # 1) 立刻落库 queued（让前端能立刻看到“已开始/排队”）
         db_upsert_analysis(photo_id, "queued", "Queued for analysis.", None)
 
-        # 2) 后台线程跑分析
         def run():
             try:
                 db_upsert_analysis(photo_id, "running", "Analyzing...", None)
-                analyze_photo(photo_id)  # worker 内部会写 done
+                analyze_photo(photo_id)
             except Exception as e:
                 db_upsert_analysis(photo_id, "error", f"{type(e).__name__}: {e}", None)
 
         threading.Thread(target=run, daemon=True).start()
-
-        # 3) 立即返回
         return jsonify({"ok": True, "photo_id": photo_id, "status": "queued"})
 
     @app.route("/api/photo/<int:photo_id>", methods=["DELETE"])
     def api_delete_photo(photo_id: int):
         ok = db_delete_photo(photo_id)
         db_delete_analysis(photo_id)
+
+        try:
+            db_delete_temp_matrix(photo_id)
+        except Exception:
+            pass
+
         if not ok:
             return jsonify({"error": "not found"}), 404
         return jsonify({"ok": True, "id": photo_id})
 
+    @app.post("/api/upload_temp")
+    def api_upload_temp():
+        """
+        Upload a local image (JPG/PNG) into TEMP storage and return a token.
+        Frontend can redirect to /pages/process/?token=... for analysis.
+        """
+        temp_gc()
 
-    import secrets
+        # Expect multipart/form-data with a file field named "file"
+        if "file" not in request.files:
+            return jsonify({"error": "file required (multipart/form-data, field name: file)"}), 400
 
-    TEMP = {}  # token -> {"jpg": bytes, "ts": float, "name": str, "params": dict, "min": int, "max": int, "mean": float}
+        f = request.files["file"]
+        if f is None or not f.filename:
+            return jsonify({"error": "empty file"}), 400
+
+        # Read bytes
+        raw = f.read()
+        if not raw or len(raw) < 100:
+            return jsonify({"error": "file too small"}), 400
+
+        # Basic content-type check (best-effort; do not fully trust it)
+        ct = (f.mimetype or "").lower()
+        allowed = {"image/jpeg", "image/jpg", "image/png", "application/octet-stream"}
+        if ct not in allowed:
+            return jsonify({"error": f"unsupported content-type: {ct}"}), 415
+
+        # Optional name from form field
+        name = (request.form.get("name") or "").strip()[:128]
+
+        # Keep a params schema similar to camera snapshots for downstream consistency
+        ts = time.time()
+        token = secrets.token_urlsafe(16)
+        params = {
+            "dev": config.DEV,
+            "src_w": config.W, "src_h": config.H,
+            "half": "upload",
+            "mode": "upload",
+            "cm": "upload",
+            "stretch": "upload",
+            "ow": None, "oh": None, "keep": None,
+            "rot": 0, "flip": 0,
+            "jpeg_quality": getattr(config, "JPEG_QUALITY", None),
+            "source": "upload",
+            "filename": f.filename,
+            "content_type": ct,
+        }
+
+        # Store into TEMP. No temperature matrix for uploads (tm=None).
+        # min/max/mean are unknown here; keep placeholders (won't block analysis).
+        TEMP[token] = {
+            "jpg": raw,
+            "tm": None,
+            "ts": ts,
+            "name": name,
+            "params": params,
+            "min": 0,
+            "max": 0,
+            "mean": 0.0,
+        }
+
+        process_url = f"/pages/process/?token={token}"
+        return jsonify({"ok": True, "token": token, "ts": ts, "has_temp": False, "process_url": process_url})
+
+    # --------------------------
+    # TEMP capture/save/analyze
+    # --------------------------
+    TEMP = {}  # token -> {"jpg": bytes, "tm": np.ndarray|None, "ts": float, ...}
     TEMP_TTL = 300  # seconds
-    
+
     def temp_gc():
         now = time.time()
-        dead = [k for k,v in TEMP.items() if now - v.get("ts", 0) > TEMP_TTL]
+        dead = [k for k, v in TEMP.items() if now - v.get("ts", 0) > TEMP_TTL]
         for k in dead:
             TEMP.pop(k, None)
-    
+
     @app.post("/api/capture_temp")
     def api_capture_temp():
         temp_gc()
@@ -263,9 +358,17 @@ def create_app() -> Flask:
 
         name = str(payload.get("name", "")).strip()[:128]
 
-        Y0 = cam.get_latest_y_copy()
-        if Y0 is None:
-            Y0 = cam.read_y_from_cap()
+        bundle = None
+        if hasattr(cam, "get_latest_bundle_copy"):
+            bundle = cam.get_latest_bundle_copy()
+
+        if bundle is not None:
+            Y0, tm0, _stats0 = bundle
+        else:
+            Y0 = cam.get_latest_y_copy()
+            if Y0 is None:
+                Y0 = cam.read_y_from_cap()
+            tm0 = cam.get_latest_temp_c_copy() if hasattr(cam, "get_latest_temp_c_copy") else None
 
         if Y0 is None:
             return jsonify({"error": "no frame"}), 503
@@ -290,6 +393,7 @@ def create_app() -> Flask:
 
         TEMP[token] = {
             "jpg": jpg,
+            "tm": tm0,  
             "ts": ts,
             "name": name,
             "params": params,
@@ -298,7 +402,7 @@ def create_app() -> Flask:
             "mean": float(info["mean"]),
         }
 
-        return jsonify({"ok": True, "token": token, "ts": ts})
+        return jsonify({"ok": True, "token": token, "ts": ts, "has_temp": bool(tm0 is not None)})
 
     @app.get("/api/temp/<token>.jpg")
     def api_temp_jpg(token: str):
@@ -332,12 +436,16 @@ def create_app() -> Flask:
             item["jpg"],
         )
 
-        # Optional: keep TEMP or delete it. I'd delete to avoid duplicates.
+        tm0 = item.get("tm")
+        if tm0 is not None:
+            try:
+                db_upsert_temp_matrix(photo_id, ts, tm0, compress="f16")
+            except Exception:
+                pass
+
         TEMP.pop(token, None)
+        return jsonify({"ok": True, "id": photo_id, "ts": ts, "name": item["name"], "has_temp": bool(tm0 is not None)})
 
-        return jsonify({"ok": True, "id": photo_id, "ts": ts, "name": item["name"]})
-
-    
     @app.post("/api/analyze_temp")
     def api_analyze_temp():
         temp_gc()
@@ -351,7 +459,6 @@ def create_app() -> Flask:
         if not item:
             return jsonify({"error": "temp token not found"}), 404
 
-        # 1) 先保存到 DB（永远优先保存）
         ts = item["ts"]
         photo_id = db_insert_photo(
             ts,
@@ -363,35 +470,37 @@ def create_app() -> Flask:
             item["jpg"],
         )
 
-        # 保存完就删 TEMP，避免重复保存
+        tm0 = item.get("tm")
+        if tm0 is not None:
+            try:
+                db_upsert_temp_matrix(photo_id, ts, tm0, compress="f16")
+            except Exception:
+                pass
+
         TEMP.pop(token, None)
 
-        # 2) 写入 queued 状态（前端开始轮询）
         db_upsert_analysis(photo_id, "queued", "Queued for analysis.", None)
 
-        # 3) 后台线程执行分析（不要阻塞 HTTP）
         def run():
             try:
                 db_upsert_analysis(photo_id, "running", "Analyzing...", None)
-                analyze_photo(photo_id)  # 你的 worker 成功会写 done
+                analyze_photo(photo_id)
             except Exception as e:
                 db_upsert_analysis(photo_id, "error", f"{type(e).__name__}: {e}", None)
 
         threading.Thread(target=run, daemon=True).start()
 
-        # 4) 立刻返回给前端：已保存 + 已入队
-        return jsonify({"ok": True, "id": photo_id, "status": "queued"})
-
+        return jsonify({"ok": True, "id": photo_id, "status": "queued", "has_temp": bool(tm0 is not None)})
 
     @app.get("/api/photo/<int:photo_id>/analysis")
     def api_get_analysis(photo_id: int):
-        a = db_get_analysis(photo_id)  # -> {"status":..., "text":...} or None
+        a = db_get_analysis(photo_id)
         if not a:
             return jsonify({"status": "none", "text": "No analysis available."}), 404
         return jsonify(a)
 
-
     return app
+
 
 if __name__ == "__main__":
     app = create_app()
